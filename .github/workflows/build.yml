@@ -1,0 +1,44 @@
+name: Build GIMX
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-24.04   # matches Mint 22.3's Ubuntu Noble base
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config git g++ \
+          libwxgtk3.2-dev libbluetooth-dev libxml2-dev libusb-1.0-0-dev \
+          libncurses-dev gettext xterm xdg-utils libmhash-dev \
+          libcurl4-gnutls-dev libxi-dev libx11-dev
+
+    - name: Patch Makefiles for modern compilers and libraries
+      run: |
+        find . -type f \( -name "Makefile" -o -name "*.mk" -o -name "Makedefs" \) \
+          -exec sed -i 's/-Werror//g; s/ncursesw5-config/ncursesw6-config/g' {} +
+
+    - name: Compile and install GIMX
+      run: |
+        make -j$(nproc)
+        make install DESTDIR=$GITHUB_WORKSPACE/gimx-install
+
+    - name: Package installed tree
+      run: |
+        cd gimx-install
+        tar czf ../gimx-mint22.3-x86_64.tar.gz .
+
+    - name: Upload Built Package
+      uses: actions/upload-artifact@v7
+      with:
+        name: gimx-built-binaries
+        path: gimx-mint22.3-x86_64.tar.gz
